@@ -167,12 +167,12 @@ void processRows(const vector<tuple<string, float, int, string>>& rows, map<stri
 
                 if (front.amount > remaining_output) {
                     // Partial output from the current input batch
-                    part_price_map[part_name] += (remaining_output * (price - front.price));
+                    part_price_map[part_name] += (int)((float)remaining_output * (price - front.price));
                     front.amount -= remaining_output; // Deduct from the current input batch
                     remaining_output = 0; // Output is fully satisfied
                 } else {
                     // Full output from the current input batch
-                    part_price_map[part_name] += (front.amount * (price - front.price));
+                    part_price_map[part_name] += (int)((float)front.amount * (price - front.price));
                     remaining_output -= front.amount; // Reduce the remaining output
                     part_queues[part_name].pop(); // Remove the current input batch
                 }
@@ -348,18 +348,20 @@ int main(int argc, char* argv[]) {
     // send accounting data to main via unnamed pipe
     int total_price = 0;
     int total_amount = 0;
-    for (auto part: part_names) {
-        total_amount += part_amount_map[part];
-        total_price += part_price_map[part];
-    }
-    char buffer_send_line_to_main[MAX_BUFFER_SIZE];
-    string line_sending_to_main = to_string(total_amount) + ' ' + to_string(total_price);
-    strcpy(buffer_send_line_to_main, line_sending_to_main.c_str());
-    int bytesWritten = write(write_pipe, buffer_send_line_to_main, sizeof(buffer_send_line_to_main));
 
-    if (bytesWritten == -1) {
-        // Error occurred
-        perror("Error writing to pipe");
+    for (const auto& part_name : part_names) {
+        total_amount += part_amount_map.at(part_name); // Use at() for safety
+        total_price += part_price_map.at(part_name);
+    }
+
+    ostringstream line;
+    line << store_name << " " << total_amount << " " << total_price << "\n";
+
+    string lineStr = line.str();
+    // cout << "line sent to main and the line is: " << lineStr << endl;
+
+    if (write(write_pipe, lineStr.c_str(), lineStr.size()) == -1) {
+        cerr << "Failed to write to pipe";
     }
     else {
         // cout << "From Store to Main: acounting data has been sent successfully from store,  " << store_name << endl;  //log

@@ -264,13 +264,17 @@ void processStores(int fd, int& total_profit) {
 
     buffer_received_from_store[bytesRead] = '\0'; // Null-terminate the string
     istringstream iss(buffer_received_from_store);
+    string store_name;
     int leftovers, benefit;
 
-    if (!(iss >> leftovers >> benefit)) {
+    if (!(iss >> store_name >> leftovers >> benefit)) {
         cerr << "Malformed data from store: " << buffer_received_from_store << endl;
     }
 
     total_profit += benefit;
+    cout << store_name << ": " << endl;
+    cout << "total leftover Quantity store: " << leftovers << endl;
+    cout << "total leftover Price store: " << benefit << endl;     
 }
 
 void processParts(int fd2, vector<string> user_wanted_part_names) {
@@ -464,17 +468,21 @@ int main(int argc, char const *argv[]) {
 
     // processing all data
     int total_profit = 0;
-    for (int j = 0; j < stores_csv_file_paths.size() + part_names.size(); j++) {
+    int j = 0;
+    while (j < stores_csv_file_paths.size() + part_names.size()) {
         if (poll(total_pfds.data(), (nfds_t)(total_pfds.size()), -1) == -1) 
             write(2, "FAILED: Poll in client\n", strlen("FAILED: Poll in client\n"));
         
         for (int i = 0; i < total_pfds.size(); i++) {
             if(total_pfds[i].revents & POLLIN) {
-                if (isPollfdInVector(pfds_read_store, total_pfds[i]))
-                processStores(pfds_read_store[i].fd, total_profit);
-            }
-            else {
-                processParts(total_pfds[i].fd, getSubsetFromIndices(indices, part_names));
+                if (isPollfdInVector(pfds_read_store, total_pfds[i])) {
+                    processStores(total_pfds[i].fd, total_profit);
+                    j++;
+                }
+                else {
+                    processParts(total_pfds[i].fd, getSubsetFromIndices(indices, part_names));
+                    j++;
+                }
             }
         }
 
