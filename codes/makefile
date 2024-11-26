@@ -1,23 +1,25 @@
 CXX = g++
-
 CXXFLAGS = -std=c++17
 
-SOURCES = main.cpp store.cpp part.cpp
-
-OBJECTS = $(SOURCES:.cpp=.o)
-
 EXECUTABLE = main.out
+STORE_EXEC = store.out
+PART_EXEC = part.out
 
-all: $(EXECUTABLE)
+all: $(EXECUTABLE) $(STORE_EXEC) $(PART_EXEC)
+	./$(EXECUTABLE) # Automatically run the main executable after building
 
-$(EXECUTABLE): $(OBJECTS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+$(EXECUTABLE): main.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+$(STORE_EXEC): store.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
 
-# Clean up generated files
+$(PART_EXEC): part.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $<
+
 clean:
-	rm -f $(OBJECTS) $(EXECUTABLE)
+	rm -f $(EXECUTABLE) $(STORE_EXEC) $(PART_EXEC)
+	rm -f main.o store.o part.o
+	rm -rf ../PipedFolder
 
 .PHONY: all clean
