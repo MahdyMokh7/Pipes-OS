@@ -32,6 +32,10 @@
 #define NAMEDPIPE_MSG "     via NamedPipe"
 #define ARGV_MSG "     via Argv"
 
+#define INFO_MAIN "[info: Main]  "
+#define INFO_PART "[info: Part]  "
+#define INFO_STORE "[info: Stor]  "
+
 using namespace std;
 
 
@@ -39,14 +43,14 @@ using namespace std;
     string line
     1. part name
     2. total leftovers
-    3. total benefit price
+    3. total profit price
 
 */
 
 /* For each store format of recieved data
     string line
     1. total leftovers
-    2. total benefit price
+    2. total profit price
 
 */
 
@@ -90,20 +94,20 @@ vector<vector<string>> readCSV(const string& filename) {
 
 void print_all_part_names(vector<string> part_names) {
     int i = 0;
-    cout << "Part names: " << endl;
+    cout << INFO_MAIN << "Part names: " << endl;
     for (auto part: part_names) {
         i++;
-        cout << i << ". " << part << endl;
+        cout  << INFO_MAIN << i << ". " << part << endl;
     }
     cout << endl;
 }
 
 void print_all_file_names(vector<string> file_names) {
     int i = 0;
-    cout << "CSV File names: " << endl;
+    cout  << INFO_MAIN << "CSV File names: " << endl;
     for (auto file: file_names) {
         i++;
-        cout << "+ " << file << endl;
+        cout << INFO_MAIN << "+ " << file << endl;
     }
     cout << endl;
 }
@@ -141,7 +145,7 @@ vector<string> createNamedPipes(const std::vector<std::string>& parts) {
             perror("mkdir"); 
             return pipeNames;
         }
-        cout << "Directory " << directory << " has been created." << endl;
+        cout << INFO_MAIN << "Directory " << directory << " has been created." << endl;
     }
 
     for (const auto& part : parts) {
@@ -152,7 +156,7 @@ vector<string> createNamedPipes(const std::vector<std::string>& parts) {
         }
         else {
             pipeNames.push_back(pipeName);
-            cout << "NamedPipe " << pipeName << " has been Created." << endl;  // log
+            cout << INFO_MAIN << "NamedPipe " << pipeName << " has been Created." << endl;  // log
         }
     }
     cout << endl;
@@ -160,19 +164,18 @@ vector<string> createNamedPipes(const std::vector<std::string>& parts) {
 }
 
 vector<int> get_part_indices() {
-    cout << "Which parts do you want to see their analytics? Enter the numbers separated by spaces(e.g., 1 3 4)" << endl;
+    cout << INFO_MAIN << "Which parts do you want to see their analytics? Enter the numbers separated by spaces (e.g., 1 3 4):" << endl;
 
-    // you have to -1 the int values
     string line;
-    cin >> line;
+    getline(cin, line); // Read the entire line from the terminal
 
     vector<int> indices;
-    istringstream stream(line);
+    istringstream stream(line); // Create a string stream from the input line
     int number;
 
-    // Extract integers from the string stream
+    // Extract integers from the string stream and subtract 1 from each
     while (stream >> number) {
-        indices.push_back(number-1);  // index should start from 0
+        indices.push_back(number - 1);
     }
 
     return indices;
@@ -238,7 +241,7 @@ void closeAndRemoveNamedPipes(const vector<string>& namedPipes) {
         if (unlink(pipePath.c_str()) == -1) {
             perror(("Failed to remove named pipe: " + pipePath).c_str());
         } else {
-            cout << "Removed named pipe: " << pipePath << endl;
+            cout << INFO_MAIN << "Removed named pipe: " << pipePath << endl;
         }
     }
 }
@@ -250,6 +253,17 @@ bool isPollfdInVector(const std::vector<pollfd>& pfds, const pollfd& searchFd) {
         }
     }
     return false; // pollfd not found in the vector
+}
+
+string convert_vectorToString(const vector<string>& vec) {
+    ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        oss << vec[i];
+        if (i != vec.size() - 1) {
+            oss << " ";
+        }
+    }
+    return oss.str();
 }
 
 void processStores(int fd, int& total_profit) {
@@ -265,16 +279,15 @@ void processStores(int fd, int& total_profit) {
     buffer_received_from_store[bytesRead] = '\0'; // Null-terminate the string
     istringstream iss(buffer_received_from_store);
     string store_name;
-    int leftovers, benefit;
+    int leftovers, profit;
 
-    if (!(iss >> store_name >> leftovers >> benefit)) {
+    if (!(iss >> store_name >> leftovers >> profit)) {
         cerr << "Malformed data from store: " << buffer_received_from_store << endl;
     }
 
-    total_profit += benefit;
-    cout << store_name << ": " << endl;
-    cout << "total leftover Quantity store: " << leftovers << endl;
-    cout << "total leftover Price store: " << benefit << endl;     
+    total_profit += profit;
+    // cout << INFO_MAIN << store_name << ": " << endl;
+    // cout << INFO_MAIN << "total Profit store: " << profit << endl;     
 }
 
 void processParts(int fd2, vector<string> user_wanted_part_names) {
@@ -290,31 +303,32 @@ void processParts(int fd2, vector<string> user_wanted_part_names) {
     buffer_received_from_part[bytesRead] = '\0'; // Null-terminate the string
     istringstream iss(buffer_received_from_part);
     string part_name;
-    int leftovers, benefit;
+    int leftovers, profit;
 
-    if (!(iss >> part_name >> leftovers >> benefit)) {
+    if (!(iss >> part_name >> leftovers >> profit)) {
         cerr << "Malformed data from part: " << buffer_received_from_part << endl;
     }
     strip(part_name);
 
     // return the total quantity and price of the wanted part////////////////////////////
-    // if (containsString(user_wanted_part_names, part_name)) {    // log (answer)
-        cout << part_name << ": " << endl;
-        cout << "total leftover Quantity: " << leftovers << endl;
-        cout << "total leftover Price: " << benefit << endl;     
-    // }
+    if (containsString(user_wanted_part_names, part_name)) {    // log (answer)
+        cout << INFO_MAIN << part_name << ": " << endl;
+        cout << INFO_MAIN << "total leftover Quantity: " << leftovers << endl;
+        cout << INFO_MAIN << "total leftover Price: " << profit << endl;
+        cout << endl;     
+    }
 }
 
 int main(int argc, char const *argv[]) {
 
     // read the csv file names dynamically 
     vector<string> stores_csv_file_paths = get_csv_file_paths(STORES_DIR_PATH);
-    // print_all_file_names(stores_csv_file_paths);  // log /////////////////////////////
+    // print_all_file_names(stores_csv_file_paths);  // log 
     
     // read Parts.csv file and print the part names
     vector<vector<string>> read_csv = readCSV(PARTS_DIR_PATH);  
     vector<string> part_names = read_csv[0];
-    print_all_part_names(part_names); // log //////////////////////////////////
+    print_all_part_names(part_names); // log 
 
     // get the parts that the user wants to see its analytics
     vector<int> indices = get_part_indices();
@@ -352,11 +366,11 @@ int main(int argc, char const *argv[]) {
 
             // convert pipes to string to pass the args exec file
             char read_pipe[10], write_pipe[10];
-            // cout <<"read pipe of part: "<< parent_to_child_pipe[0] << endl;
+            // cout << INFO_MAIN <<"read pipe of part: "<< parent_to_child_pipe[0] << endl;
             sprintf(read_pipe, "%d", parent_to_child_pipe[0]);
             sprintf(write_pipe, "%d", child_to_parent_pipe[1]);
             string fifo_name = namedPipes[i];
-            // cout << "namedpipes[i] :  " << fifo_name << endl; /////////////////////// 
+            // cout << INFO_MAIN << "namedpipes[i] :  " << fifo_name << endl; /////////////////////// 
 
             // exec system call
             execlp(PART_EXE_FILE, "part", read_pipe, write_pipe, fifo_name.c_str(), nullptr);
@@ -376,8 +390,8 @@ int main(int argc, char const *argv[]) {
                 perror("write to pipe failed for part name and store size");
             }
             else {
-                // cout << "From Main to Part: sending part name, " << part << endl;  // log//////////////////////////
-                // cout << "From Main to Part: sending stores size, " << to_string(stores_csv_file_paths.size()).c_str() << endl;  // log////////////////////////
+                // cout << INFO_MAIN << "From Main to Part: sending part name, " << part << endl;  // log//////////////////////////
+                // cout << INFO_MAIN << "From Main to Part: sending stores size, " << to_string(stores_csv_file_paths.size()).c_str() << endl;  // log////////////////////////
             }
 
             // int status;
@@ -447,13 +461,14 @@ int main(int argc, char const *argv[]) {
 
             // send store name to store.cpp  // send the part names so that in each part calculation
             string temp_part_names = vectorToString(part_names);
-            string msg = temp_part_names + "\n" + store_csv_file_path;
+            string parts_wanted = convert_vectorToString(getSubsetFromIndices(indices, part_names));
+            string msg = temp_part_names + "\n" + store_csv_file_path + "\n" + parts_wanted;
             int bytesWritten = write(parent_to_child_pipe[1], msg.c_str(), strlen(msg.c_str()) + 1);
             if(bytesWritten < 0) {
                 cerr << "COULDNT send data via pipe in store" << endl;
             }
             else {
-                // cout << "From Main to Store: sending store csv file path, " << store_csv_file_path << endl;  // log  /////////////////////////////
+                // cout << INFO_MAIN << "From Main to Store: sending store csv file path, " << store_csv_file_path << endl;  // log  /////////////////////////////
             }
             
             
@@ -489,19 +504,19 @@ int main(int argc, char const *argv[]) {
     }
 
     // Total Profit
-    cout << "Total profit of all stores:  " << total_profit << endl; // log (answer)
+    cout << INFO_MAIN << "Total profit of all stores:  " << total_profit << endl << endl; // log (answer)
 
     // wait for all the child processes to end
     bool all_exited_successfully = checkAllProcessesExitedSuccessfully(pids);
     if (all_exited_successfully) {
-        cout << "All children processes exited successfully." << endl;
-    } else {
-        cout << "Some children processes failed or did not exit properly." << endl;
+        cout << INFO_MAIN << "All children processes exited successfully." << endl;
+    } else { 
+        cout << INFO_MAIN << "Some children processes failed or did not exit properly." << endl;
     }
 
     // close all named pipes (function)
     // remove all named pipe (function)
-    // closeAndRemoveNamedPipes(namedPipes);    
+    closeAndRemoveNamedPipes(namedPipes);    
 
     return 0;
 }

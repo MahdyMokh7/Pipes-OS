@@ -15,6 +15,7 @@
 #include <fcntl.h> 
 #include <map>
 #include <queue>
+#include<algorithm>
 #include<mutex>
 
 
@@ -25,6 +26,10 @@
 
 #define INPUT "input"
 #define OUTPUT "output"
+
+#define INFO_MAIN "[info: Main]  "
+#define INFO_PART "[info: Part]  "
+#define INFO_STORE "[info: Stor]  "
 
 
 
@@ -87,26 +92,31 @@ string findPipeNameByPartName(const vector<string>& pipeNames, const string& par
     return "";  // Return empty string if no match is found
 }
 
-bool splitBuffer(const char* buffer, string &buffer_part_names, string &buffer_store_csv_file_path) {
+bool splitBuffer(const char* buffer, string& buffer_part_names, string& buffer_store_csv_file_path, string& parts_wanted) {
     buffer_part_names.clear();
     buffer_store_csv_file_path.clear();
-    bool foundNewline = false;
+    parts_wanted.clear();
+
+    int newlineCount = 0;
 
     for (size_t i = 0; buffer[i] != '\0'; ++i) {
         if (buffer[i] == '\n') {
-            foundNewline = true;
-            continue; // Skip the newline character
+            ++newlineCount;
+            continue; 
         }
 
-        if (!foundNewline) {
+        if (newlineCount == 0) {
             buffer_part_names += buffer[i];
-        } else {
+        } else if (newlineCount == 1) {
             buffer_store_csv_file_path += buffer[i];
+        } else if (newlineCount == 2) {
+            parts_wanted += buffer[i];
         }
     }
 
-    return foundNewline; // Return true if the delimiter '\n' was found
+    return newlineCount >= 2; // Return true if at least two delimiters '\n' were found
 }
+
 
 string extractName(string path) {
     size_t lastSlash = path.find_last_of('/');
@@ -131,12 +141,12 @@ vector<string> stringToVector(const string& str) {
     return partNames;
 }
 
-void processRows(const vector<tuple<string, float, int, string>>& rows, map<string, int>& part_price_map, map<string, int>& part_amount_map, const vector<string>& part_names) {
+void processRows(const vector<tuple<string, float, int, string>>& rows, map<string, int>& part_profit_map, map<string, int>& part_amount_map, const vector<string>& part_names, map<string, int>& part_leftover_price_map) {
     map<string, queue<InputRecord>> part_queues; // Map each part to its FIFO queue
 
     // init the part_price_map so that the without output rows won't have any problem
     for (auto part: part_names) {
-        part_price_map[part] = 0;
+        part_profit_map[part] = 0;
     } 
 
     for (const auto& row : rows) {
@@ -149,13 +159,13 @@ void processRows(const vector<tuple<string, float, int, string>>& rows, map<stri
         tie(part_name, price, amount, type_io) = row;
         strip(type_io);
 
-        // cout << "rowwwwwwwwwwwwwww, ..   " << part_name << "  " << price << "  " << amount << "  " << type_io << endl ; 
+        // cout << INFO_STORE << "rowwwwwwwwwwwwwww, ..   " << part_name << "  " << price << "  " << amount << "  " << type_io << endl ; 
 
         if (type_io == INPUT) {
             // Add input to the queue for the corresponding part
             part_queues[part_name].push({amount, price});
             part_amount_map[part_name] += amount;
-            // cout << "omaddddddd inpuuuuuuttttt, ..   " << part_name << "  " << price << "  " << amount << "  " << type_io << endl ; 
+            // cout << INFO_STORE << "omaddddddd inpuuuuuuttttt, ..   " << part_name << "  " << price << "  " << amount << "  " << type_io << endl ; 
 
         } else { // Output
             part_amount_map[part_name] -= amount;
@@ -167,12 +177,12 @@ void processRows(const vector<tuple<string, float, int, string>>& rows, map<stri
 
                 if (front.amount > remaining_output) {
                     // Partial output from the current input batch
-                    part_price_map[part_name] += (int)((float)remaining_output * (price - front.price));
+                    part_profit_map[part_name] += (int)((float)remaining_output * (price - front.price));
                     front.amount -= remaining_output; // Deduct from the current input batch
                     remaining_output = 0; // Output is fully satisfied
                 } else {
                     // Full output from the current input batch
-                    part_price_map[part_name] += (int)((float)front.amount * (price - front.price));
+                    part_profit_map[part_name] += (int)((float)front.amount * (price - front.price));
                     remaining_output -= front.amount; // Reduce the remaining output
                     part_queues[part_name].pop(); // Remove the current input batch
                 }
@@ -183,6 +193,16 @@ void processRows(const vector<tuple<string, float, int, string>>& rows, map<stri
             }
         }
     }
+
+    for (auto part: part_names) {
+        queue<InputRecord> temp_queue = part_queues[part]; 
+        while (!temp_queue.empty()) {
+            InputRecord record = temp_queue.front();
+            part_leftover_price_map[part] += (int)(record.price * (float)record.amount);
+            temp_queue.pop();
+        }
+    } 
+
 }
 
 vector<tuple<string, float, int, string>> parseCSV(string csvFileName) {
@@ -234,6 +254,10 @@ vector<K> getKeys(const map<K, V>& m) {
     return keys;
 }
 
+bool isStringInVector(const std::vector<std::string>& vec, const std::string& str) {
+    return find(vec.begin(), vec.end(), str) != vec.end();
+}
+
 void printStringElements(const std::vector<std::string>& vec) {
     for (const auto& str : vec) {
         cout << str << " ";
@@ -246,8 +270,8 @@ int main(int argc, char* argv[]) {
 
     int read_pipe = stoi(argv[1]);
     int write_pipe = stoi(argv[2]);
-    // cout << "read_pipe  " << read_pipe << endl;
-    // cout << "write pipe  " << write_pipe << endl;
+    // cout << INFO_STORE << "read_pipe  " << read_pipe << endl;
+    // cout << INFO_STORE << "write pipe  " << write_pipe << endl;
 
     vector<string> namedPipe_paths;
     int i = 3; 
@@ -255,7 +279,7 @@ int main(int argc, char* argv[]) {
     // getting the namedPipes
     while (argv[i] != nullptr) {
         namedPipe_paths.push_back(string(argv[i]));
-        // cout << "namedPipe_paths  " <<  string(argv[i]) << endl;//////
+        // cout << INFO_STORE  << "namedPipe_paths  " <<  string(argv[i]) << endl;//////
         strip(namedPipe_paths.back());
         i++;
     }
@@ -264,51 +288,46 @@ int main(int argc, char* argv[]) {
     char buffer[MAX_BUFFER_SIZE];
     string part_names_str;
     string store_csv_file_path_str;
+    string parts_wanted_str;
 
     int bytesRead = read(read_pipe, buffer, sizeof(buffer));
-    splitBuffer(buffer, part_names_str, store_csv_file_path_str);
+    splitBuffer(buffer, part_names_str, store_csv_file_path_str, parts_wanted_str);
     strip(part_names_str);
     strip(store_csv_file_path_str);
+    strip(parts_wanted_str);
 
     string store_name = extractName(store_csv_file_path_str);
     vector<string> part_names = stringToVector(part_names_str);
+    vector<string> parts_wanted = stringToVector(parts_wanted_str);
 
-    // cout << "buffer " << buffer << endl;
-    // cout << "buffer aprt name  " << buffer_part_names << endl;
-    // cout << "buffer store csv file path  " << buffer_store_csv_file_path << endl;////////////
-    // cout << "store name  " << store_name << endl;  ///////////////
+    // cout << INFO_STORE << "buffer " << buffer << endl;
+    // cout << INFO_STORE << "buffer aprt name  " << buffer_part_names << endl;
+    // cout << INFO_STORE << "buffer store csv file path  " << buffer_store_csv_file_path << endl;
+    // cout << INFO_STORE << "store name  " << store_name << endl;  
     if (bytesRead == -1) {
         perror("read failed");
         return 1;
     }
     else {
         // lock_guard<mutex> lock(mtx);
-        cout << "Store: " << store_name << endl;
-        cout << "read pipe,  " << read_pipe << ARGV_MSG <<endl;
-        cout << "write pipe,  " << write_pipe << ARGV_MSG << endl;
-        cout << "named pipe paths,  ";
+        cout << INFO_STORE << "Store: " << store_name << endl;
+        cout << INFO_STORE << "read pipe,  " << read_pipe << ARGV_MSG <<endl;
+        cout << INFO_STORE << "write pipe,  " << write_pipe << ARGV_MSG << endl;
+        cout << INFO_STORE << "named pipe paths,  ";
         printStringElements(namedPipe_paths);  // namedPipe paths
-        cout << ARGV_MSG << endl;
-        cout << "part names recieved,  " << part_names_str << UNAMEDPIPE_MSG << endl;  // log
-        cout << "store csv file name recieved,  " << store_name << UNAMEDPIPE_MSG << endl;  // log
+        cout << INFO_STORE << ARGV_MSG << endl;
+        cout << INFO_STORE << "part names recieved,  " << part_names_str << UNAMEDPIPE_MSG << endl;  // log
+        cout << INFO_STORE << "store csv file name recieved,  " << store_name << UNAMEDPIPE_MSG << endl;  // log
         cout << endl;
     }
 
-    map<string, int> part_price_map;
+    map<string, int> part_profit_map;
     map<string, int> part_amount_map;
+    map<string, int> part_leftover_price_map;
 
 
     // The acocunting information gets calculated
-    processRows(parseCSV(store_csv_file_path_str), part_price_map, part_amount_map, part_names);  
-
-    // cout << store_name << "  salammmmmmmmmmm  " << part_price_map.size() << endl;
-    // for (const auto& pair : part_amount_map) {
-    //     cout << store_name << "  heyyyyyyyyyyyyyyyyyyyyyyyyyyy  " << pair.first << ": " << pair.second << endl;  //////////////////////// 
-    // }
-    // for (const auto& pair : part_price_map) {
-    //     cout << store_name << "  priceeeeeeeeeeeeeeeeeeeeeeeee  " << pair.first << ": " << pair.second << endl;  //////////////////////// 
-    // }
-    // return 0;
+    processRows(parseCSV(store_csv_file_path_str), part_profit_map, part_amount_map, part_names, part_leftover_price_map);  
 
     int total_valid = 0;
     // send acounting data to part via NamedPipes
@@ -316,20 +335,25 @@ int main(int argc, char* argv[]) {
         string namedPipe = findPipeNameByPartName(namedPipe_paths, part_name);
 
         // Open the named pipe for writing
-        // cout <<"openinggggggggg"<< namedPipe << endl;
+        // cout  << INFO_STORE <<"openinggggggggg"<< namedPipe << endl;
         int pipeFd = open(namedPipe.c_str(), O_WRONLY);
         if (pipeFd == -1) {
             perror(("Failed to open named pipe: " + namedPipe).c_str());
         }
+        else {
+            cout << INFO_STORE << "namedPipe " << namedPipe  << "successfully opened for reading" << endl;  // log
+        }
 
-        int price = part_price_map[part_name]; // Assume part exists in partPriceMap
+        int profit = part_profit_map[part_name]; 
         int amount = part_amount_map[part_name];
+        int leftover_price = part_leftover_price_map[part_name];
 
         ostringstream line;
-        line << store_name << " " << amount << " " << price << "\n";   ///////// why is the amount and the price values zero ////////////////
+        line << store_name << " " << amount << " " << leftover_price << "\n";   ///////// why is the amount and the price values zero ////////////////
 
         string lineStr = line.str();
-        // cout << "line sent to " << part_name << " and the line is,  " << lineStr << endl;///////////////////////
+        // cout << INFO_STORE << "line sent to " << part_name << " and the line is,  " << lineStr << endl;///////////////////////
+        // sending data to part.cpp
         if (write(pipeFd, lineStr.c_str(), lineStr.size()) == -1) {
             perror(("Failed to write to named pipe: " + namedPipe).c_str());
         }
@@ -339,33 +363,37 @@ int main(int argc, char* argv[]) {
 
     }
     if (total_valid == part_names.size()) {
-    //    cout << "From Store to all Parts: acounting data has been sent successfully from store,  " << store_name << endl;  // log
+    //    cout << INFO_STORE << "From Store to all Parts: acounting data has been sent successfully from store,  " << store_name << endl;  // log
     }
     else {
         cerr << "From Store to all Parts:  acounting data sent FAILED " << endl;  
     }
 
     // send accounting data to main via unnamed pipe
-    int total_price = 0;
+    int total_profit = 0;
     int total_amount = 0;
 
     for (const auto& part_name : part_names) {
-        total_amount += part_amount_map.at(part_name); // Use at() for safety
-        total_price += part_price_map.at(part_name);
+        if (isStringInVector(parts_wanted, part_name)) {
+            total_amount += part_amount_map.at(part_name); // Use at() for safety
+            total_profit += part_profit_map.at(part_name);
+        }
     }
 
     ostringstream line;
-    line << store_name << " " << total_amount << " " << total_price << "\n";
+    line << store_name << " " << total_amount << " " << total_profit << "\n";
 
     string lineStr = line.str();
-    // cout << "line sent to main and the line is: " << lineStr << endl;
+    // cout << INFO_STORE << "line sent to main and the line is: " << lineStr << endl;
 
     if (write(write_pipe, lineStr.c_str(), lineStr.size()) == -1) {
         cerr << "Failed to write to pipe";
     }
     else {
-        // cout << "From Store to Main: acounting data has been sent successfully from store,  " << store_name << endl;  //log
+        // cout << INFO_STORE << "From Store to Main: acounting data has been sent successfully from store,  " << store_name << endl;  //log
     }
+
+    cout << INFO_STORE << "store " << store_name << ": process finished successfully" << endl;
 
     return 0;
 

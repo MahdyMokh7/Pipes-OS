@@ -20,6 +20,10 @@
 #define NAMEDPIPE_MSG "     via NamedPipe"
 #define ARGV_MSG "     via Argv"
 
+#define INFO_MAIN "[info: Main]  "
+#define INFO_PART "[info: Part]  "
+#define INFO_STORE "[info: Stor]  "
+
 using namespace std;
 
 
@@ -94,8 +98,8 @@ void processPipeData(const string& buffer, const string& part_name_str, int& pro
                 process_store_count++;
 
                 // Log the data
-                cout << "Part " << part_name_str << ": received accounting data from store(city), " 
-                     << store_name << ".  " << "leftover:  " << leftover << "  price:  " << price <<  endl;  // log
+                // cout << INFO_PART << "Part " << part_name_str << ": received accounting data from store(city), " 
+                //      << store_name << ".  " << "leftover:  " << leftover << "  price:  " << price <<  endl;  // log
 
             }
             else {
@@ -111,21 +115,21 @@ int main(int argc, char* argv[]) {
     int write_pipe = stoi(argv[2]);
     string pipeName = string(argv[3]);
     strip(pipeName);
-    // cout << "readpipe " << read_pipe << endl;
-    // cout << "writepipe " << write_pipe  << endl;
-    // cout << "Pipename " << pipeName << endl;
+    // cout << INFO_PART << "readpipe " << read_pipe << endl;
+    // cout << INFO_PART << "writepipe " << write_pipe  << endl;
+    // cout << INFO_PART << "Pipename " << pipeName << endl;
 
     // Read from the pipe (parent to child) [part name]
     char buffer[MAX_BUFFER_SIZE];
     string part_name_str;
     string num_of_stores_str;
     int bytesRead = read(read_pipe, buffer, sizeof(buffer));
-    // cout << "why? " << buffer << endl;  ///////////////////////////////////
+    // cout << INFO_PART << "why? " << buffer << endl;  ///////////////////////////////////
 
-    // cout << "start" << endl;
+    // cout << INFO_PART << "start" << endl;
     bool flag_recieve = splitBuffer(buffer, part_name_str, num_of_stores_str);
     int num_of_stores;
-    // cout << "end" << endl;
+    // cout << INFO_PART << "end" << endl;
     if (bytesRead == -1 && !flag_recieve) {
         perror("read failed");
         return 1;
@@ -133,11 +137,11 @@ int main(int argc, char* argv[]) {
     else {
         strip(part_name_str);
         num_of_stores = stoi(num_of_stores_str);
-        cout << "Part: " << part_name_str << endl;
-        cout << "read pipe,  " << read_pipe << ARGV_MSG << endl;
-        cout << "write pipe,  " << write_pipe << ARGV_MSG << endl;
-        cout << "part name recieved,  " << part_name_str << UNAMEDPIPE_MSG << endl;  // log
-        cout << "stores size recieved,  " << num_of_stores << UNAMEDPIPE_MSG << endl;  // log
+        cout << INFO_PART << "Part: " << part_name_str << endl;
+        cout << INFO_PART << "read pipe,  " << read_pipe << ARGV_MSG << endl;
+        cout << INFO_PART << "write pipe,  " << write_pipe << ARGV_MSG << endl;
+        cout << INFO_PART << "part name recieved,  " << part_name_str << UNAMEDPIPE_MSG << endl;  // log
+        cout << INFO_PART << "stores size recieved,  " << num_of_stores << UNAMEDPIPE_MSG << endl;  // log
         cout << endl;
     }
 
@@ -154,9 +158,9 @@ int main(int argc, char* argv[]) {
             perror("Failed to open named pipe");
             return 1;
         }
-        // else {
-        //     cout << "namedPipe " << pipeName  << "successfully opened for reading" << endl;  // log
-        // }
+        else {
+            cout << INFO_PART << "namedPipe " << pipeName  << "successfully opened for reading" << endl;  // log
+        }
 
         // Buffer to store data from the named pipe
         char buffer_store_data[MAX_BUFFER_SIZE];
@@ -186,8 +190,10 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     else {
-        // cout << "From Part to Main: sending accounting Data of part, " << part_name_str << endl;  // log
+        // cout << INFO_PART << "From Part to Main: sending accounting Data of part, " << part_name_str << endl;  // log
     }
+
+    cout << INFO_PART << "part " << part_name_str << ": process finished successfully" << endl;
 
     return 0;
 
